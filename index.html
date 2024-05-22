@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo App</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+    <style>
+        /* Global Styles */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Header Styles */
+        header {
+            background-color: #333;
+            padding: 10px 0;
+        }
+
+        nav ul {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        nav ul li {
+            display: inline;
+            margin-right: 20px;
+        }
+
+        nav ul li a {
+            color: #fff;
+            text-decoration: none;
+            font-size: 18px;
+        }
+
+        /* Post Styles */
+        h2 {
+            color: #333;
+        }
+
+        h3 {
+            color: #666;
+        }
+
+        p {
+            color: #444;
+        }
+
+        /* Todos Styles */
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            margin-bottom: 10px;
+        }
+
+        .completed {
+            text-decoration: line-through;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- Header component -->
+        <header>
+            <nav>
+                <ul>
+                    <li><a @click="selectedMenu = 'Post'">Post</a></li>
+                    <li><a @click="selectedMenu = 'Todos'">Todos</a></li>
+                    <li><a @click="selectedMenu = 'Users'">Users</a></li>
+                </ul>
+            </nav>
+        </header>
+        
+        <div v-if="selectedMenu === 'Post'">
+            <!-- Post component -->
+            <div>
+                <h2>Postingan</h2>
+                <select v-model="selectedUser">
+                    <option v-for="user in users" :value="user.id">{{ user.name }}</option>
+                </select>
+                <div v-if="posts.length">
+                    <ul>
+                        <li v-for="post in filteredPosts" :key="post.id">
+                            <h3>{{ post.title }}</h3>
+                            <p>{{ post.body }}</p>
+                        </li>
+                    </ul>
+                </div>
+                <div v-else>
+                    <p>Loading...</p>
+                </div>
+            </div>
+        </div>
+
+        <div v-else-if="selectedMenu === 'Todos'">
+            <!-- Todos component -->
+            <div>
+                <h2>Todos</h2>
+                <div>
+                    <input type="text" v-model="newTodo" placeholder="Tambahkan Todo">
+                    <button @click="addTodo">Tambah</button>
+                </div>
+                <div>
+                    <label for="filter">Filter:</label>
+                    <select v-model="filter">
+                        <option value="all">Semua</option>
+                        <option value="completed">Selesai</option>
+                        <option value="uncompleted">Belum Selesai</option>
+                    </select>
+                </div>
+                <div v-if="filteredTodos.length">
+                    <ul>
+                        <!-- TodoItem component -->
+                        <todo-item v-for="todo in filteredTodos" :key="todo.id" :todo="todo" @remove="removeTodo" @toggle="toggleTodo"></todo-item>
+                    </ul>
+                </div>
+                <div v-else>
+                    <p>Tidak ada todo.</p>
+                </div>
+            </div>
+        </div>
+
+        <div v-else-if="selectedMenu === 'Users'">
+            <!-- UserList component -->
+            <user-list :users="users"></user-list>
+            <!-- AddUser component -->
+            <add-user @userAdded="handleUserAdded"></add-user>
+        </div>
+    </div>
+
+    <script>
+        // UserList component
+        Vue.component('user-list', {
+            props: ['users'],
+            template: `
+                <div>
+                    <h2>Daftar Pengguna</h2>
+                    <ul>
+                        <li v-for="user in users" :key="user.id">
+                            {{ user.name }} - {{ user.email }}
+                        </li>
+                    </ul>
+                </div>
+            `
+        });
+
+        // TodoItem component
+        Vue.component('todo-item', {
+            props: ['todo'],
+            template: `
+                <li :class="{ completed: todo.completed }">
+                    <input type="checkbox" v-model="todo.completed" @change="$emit('toggle', todo)">
+                    <label>{{ todo.title }}</label>
+                    <button @click="$emit('remove', todo.id)">Hapus</button>
+                </li>
+            `
+        });
+
+        // AddUser component
+        Vue.component('add-user', {
+            data() {
+                return {
+                    newUser: {
+                        name: '',
+                        email: ''
+                    }
+                };
+            },
+            methods: {
+                async addUser() {
+                    try {
+                        const response = await axios.post('https://jsonplaceholder.typicode.com/users', {
+                            name: this.newUser.name,
+                            email: this.newUser.email
+                        });
+                        this.$emit('userAdded', response.data); // Emit event to parent component
+                        this.newUser.name = ''; // Reset input fields
+                        this.newUser.email = '';
+                    } catch (error) {
+                        console.error('Error adding user:', error);
+                    }
+                }
+            },
+            template: `
+                <div>
+                    <h2>Tambah Pengguna Baru</h2>
+                    <input type="text" v-model="newUser.name" placeholder="Nama Pengguna">
+                    <input type="email" v-model="newUser.email" placeholder="Email Pengguna">
+                    <button @click="addUser">Tambah Pengguna</button>
+                </div>
+            `
+        });
+
+        // Vue instance
+        new Vue({
+            el: '#app',
+            data: {
+                selectedMenu: 'Post',
+                selectedUser: null,
+                users: [],
+                posts: [],
+                todos: [],
+                newTodo: '',
+                filter: 'all'
+            },
+            computed: {
+                filteredPosts() {
+                    return this.posts.filter(post => post.userId === parseInt(this.selectedUser));
+                },
+                filteredTodos() {
+                    if (this.filter === 'completed') {
+                        return this.todos.filter(todo => todo.completed);
+                    } else if (this.filter === 'uncompleted') {
+                        return this.todos.filter(todo => !todo.completed);
+                    } else {
+                        return this.todos;
+                    }
+                }
+            },
+            created() {
+                this.fetchUsers();
+                this.fetchPosts();
+                this.fetchTodos();
+            },
+            methods: {
+                async fetchUsers() {
+                    try {
+                        const response = await axios.get('https://jsonplaceholder.typicode.com/users');
+                        this.users = response.data;
+                    } catch (error) {
+                        console.error('Error fetching users:', error);
+                    }
+                },
+                async fetchPosts() {
+                    try {
+                        const response = await axios.get('https://jsonplaceholder.typicode.com/posts');
+                        this.posts = response.data;
+                    } catch (error) {
+                        console.error('Error fetching posts:', error);
+                    }
+                },
+                async fetchTodos() {
+                    try {
+                        const response = await axios.get('https://jsonplaceholder.typicode.com/todos');
+                        this.todos = response.data;
+                    } catch (error) {
+                        console.error('Error fetching todos:', error);
+                    }
+                },
+                async addTodo() {
+                    if (this.newTodo.trim() !== '') {
+                        try {
+                            const response = await axios.post('https://jsonplaceholder.typicode.com/todos', {
+                                title: this.newTodo,
+                                completed: false
+                            });
+                            this.todos.unshift(response.data);
+                            this.newTodo = '';
+                        } catch (error) {
+                            console.error('Error adding todo:', error);
+                        }
+                    }
+                },
+                async removeTodo(id) {
+                    try {
+                        await axios.delete(`https://jsonplaceholder.typicode.com/todos/${id}`);
+                        this.todos = this.todos.filter(todo => todo.id !== id);
+                    } catch (error) {
+                        console.error('Error removing todo:', error);
+                    }
+                },
+                async toggleTodo(todo) {
+                    try {
+                        const response = await axios.put(`https://jsonplaceholder.typicode.com/todos/${todo.id}`, todo);
+                    } catch (error) {
+                        console.error('Error updating todo:', error);
+                    }
+                },
+                handleUserAdded(newUser) {
+                    this.users.push(newUser); // Add the new user to the users list
+                }
+            }
+        });
+    </script>
+</body>
+</html>
